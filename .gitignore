@@ -1,0 +1,15 @@
+# Build output — cmake + vcpkg tree, ~2 GB, regenerable via
+# `cmake --preset skyrim && cmake --build build/skyrim --config Release`
+build/
+out/
+.vs/
+*.user
+CMakeSettings.json
+
+# Release archives and staging folders produced by tools/Package.ps1
+package/*.zip
+package/*/
+
+# Local log captures. The live SceneDirector.log is written to the
+# OneDrive-redirected My Games path, not here.
+logs/*.log

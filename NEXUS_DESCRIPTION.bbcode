@@ -1,0 +1,120 @@
+[b]Cinematic Conversation Camera[/b]
+
+Cut between the player and NPC during dialogue. Choose from 39 camera angles,
+adjust each shot's field of view and movement, and set when the angle changes.
+
+Choose Standard, Close or Room, or save your own presets. Keep Subject Visible
+looks for a clear enabled shot and can switch to first person when the view is
+blocked. Ignore Obstructions Mid-Shot holds the selected camera position.
+
+Adjust letterbox bars, HUD visibility and dialogue fading. Inventory, barter
+and other menus suspend the camera presentation until you close them.
+
+[b]Player voice and expressions[/b]
+
+DBVO 1, DBVO 2 and Dragonborn ReVoiced are detected automatically.
+[url=https://www.nexusmods.com/skyrimspecialedition/mods/184221]Dragonborn ReVoiced[/url]
+1.4.4 or newer is recommended for voice timing and player lip sync.
+DBVO uses the optional Lip Sync Fallback. A voice mod is not required.
+
+Responsive Expressions adds brow and squint movement while speaking and reactions
+while listening. Eye & Cheek Detail needs a matching regional asset, supplied
+separately. Voice tone and sarcasm are not analyzed.
+
+[b]Requirements[/b]
+
+Skyrim SE/AE, matching [url=https://skse.silverlock.org/]SKSE[/url] and
+[url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library[/url].
+[url=https://www.nexusmods.com/skyrimspecialedition/mods/120352]SKSE Menu Framework[/url]
+is optional for the settings panel.
+
+[b]Install[/b]
+
+Close Skyrim and replace the old version through MO2 or Vortex.
+Keep SD_user.ini to retain menu settings. No ESP or Papyrus scripts.
+Nothing is written to your save.
+
+[b]Settings[/b]
+
+Open Cinematic Conversation Camera in SKSE Menu Framework, or edit
+Data/SKSE/Plugins/SD.ini. Menu changes save to SD_user.ini.
+Settings marked (restart) need a game restart.
+
+The default is Close, with a new angle every 3–6 eligible lines, 12% letterbox
+bars, dialogue fading, responsive expressions and DBVO lip-sync fallback.
+
+[b]Compatibility[/b]
+
+Keep SmoothCam enabled. The camera returns to it after dialogue.
+
+For Improved Camera in first person, set bScripted=0 under [EVENTS] in
+SKSE/Plugins/ImprovedCameraSE/Profiles/Default.ini, or your active profile.
+This affects its other scripted forced-third-person events too.
+Third-person players do not need the change.
+
+Disable Improved Alternate Conversation Camera, Alternate Conversation Camera,
+Switch Camera During Dialogue, and Camera Noise or other camera-shake mods.
+
+[b]Version 1.4.6[/b]
+
+Settings are cached between conversations while INI files are unchanged.
+The Release build and 16 tests pass. In-game performance testing is still needed.
+The reported dialogue exit/re-entry control lock remains unresolved.
+
+Settings and compatibility details are in USAGE.md in the download.
+Logs are in Documents/My Games/Skyrim Special Edition/SKSE/SceneDirector.log.
+
+[b]Source and license[/b]
+
+GPL-3.0-or-later with the included exceptions. Dependency licenses and credits
+are in THIRD-PARTY-NOTICES.md and licenses/.
+Download the matching complete Source.zip from the same release.
+
+[b]Credits[/b]
+
+Created by hashhbbrown. Thanks to the CommonLibSSE-NG, SKSE, SKSE Menu Framework,
+SmoothCam and Dragonborn ReVoiced contributors.
+
+Thanks to [url=https://www.nexusmods.com/skyrimspecialedition/users/22822094]MaskedRPGFan[/url]
+and [url=https://www.nexusmods.com/skyrimspecialedition/users/60861451]NasGorTelorCeplok[/url]
+for their earlier dialogue-camera mods.
+
+[b]Images[/b]
+
+[center]
+[img width=500]https://i.ibb.co/PzT4hY7M/11.png[/img]
+
+[img width=500]https://i.ibb.co/0pMJfRWJ/12.png[/img]
+
+[img width=500]https://i.ibb.co/nN54Bsdw/15.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786323236-1749835552.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786323237-1083066989.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786323242-1239350295.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786323242-574968265.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786323246-1410739419.png[/img]
+
+[img width=500]https://i.ibb.co/vxks5MB6/16.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786324089-407425701.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786324094-285754428.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786324094-1451114534.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786324089-2104866770.png[/img]
+
+[img width=500]https://i.ibb.co/jPQwGYwM/17.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786324486-911588248.png[/img]
+
+[img]https://staticdelivery.nexusmods.com/mods/1704/images/187087/187087-1786324484-2136065036.png[/img]
+
+[img width=500]https://i.ibb.co/YrWKHXn/13.png[/img]
+
+[img width=500]https://i.ibb.co/21KwNy85/14.png[/img]
+[/center]
