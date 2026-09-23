@@ -71,15 +71,32 @@ foreach ($dep in @('fmt','spdlog','nlohmann-json','rapidcsv','directxmath','dire
 }
 $commonlibCommit = & git -C "$root/extern/CommonLibSSE-NG" rev-parse HEAD
 $openvrCommit = & git -C "$root/extern/CommonLibSSE-NG/extern/openvr" rev-parse HEAD
+# Relative paths by prefix: [IO.Path]::GetRelativePath needs PowerShell 7.
+$sourcePrefix = [IO.Path]::GetFullPath($source).TrimEnd('\') + '\'
 $sourceFiles = @(Get-ChildItem -LiteralPath $source -File -Recurse | Sort-Object FullName | ForEach-Object {
-    [ordered]@{ path = [IO.Path]::GetRelativePath($source, $_.FullName).Replace('\','/'); sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash }
+    [ordered]@{ path = $_.FullName.Substring($sourcePrefix.Length).Replace('\','/'); sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash }
 })
 [ordered]@{ version=$version; commonlibCommit=$commonlibCommit; openvrCommit=$openvrCommit; dllSha256=(Get-FileHash -LiteralPath $dll.FullName).Hash; files=$sourceFiles } |
     ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$source/SOURCE-MANIFEST.json" -Encoding utf8
 Copy-Item -LiteralPath "$source/SOURCE-MANIFEST.json" -Destination $binary
 $out = Join-Path $root 'package'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
-Add-Type -AssemblyName System.IO.Compression.FileSystem
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+# Entry names use '/' as the ZIP spec requires. Under Windows PowerShell,
+# ZipFile.CreateFromDirectory writes '\', which some mod managers misread.
+function New-Zip([string]$directory, [string]$zipPath) {
+    $prefix = [IO.Path]::GetFullPath($directory).TrimEnd('\') + '\'
+    $archive = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($file in Get-ChildItem -LiteralPath $directory -File -Recurse | Sort-Object FullName) {
+            $entryName = $file.FullName.Substring($prefix.Length).Replace('\', '/')
+            [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file.FullName, $entryName,
+                [IO.Compression.CompressionLevel]::Optimal)
+        }
+    } finally {
+        $archive.Dispose()
+    }
+}
 foreach ($entry in @(@{dir=$binary; suffix=''}, @{dir=$source; suffix=' Source'})) {
     $zip = Join-Path $out "$name$($entry.suffix).zip"
     foreach ($existing in @($zip, "$zip.sha256")) {
@@ -90,7 +107,7 @@ foreach ($entry in @(@{dir=$binary; suffix=''}, @{dir=$source; suffix=' Source'}
             Remove-Item -LiteralPath $existing
         }
     }
-    [IO.Compression.ZipFile]::CreateFromDirectory($entry.dir, $zip, [IO.Compression.CompressionLevel]::Optimal, $false)
+    New-Zip $entry.dir $zip
     $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
     "$hash  $([IO.Path]::GetFileName($zip))" | Set-Content -LiteralPath "$zip.sha256" -Encoding ascii
     Write-Output "Prepared: $zip"

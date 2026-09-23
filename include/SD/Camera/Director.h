@@ -92,6 +92,17 @@ namespace SD::Camera
 		int cutEveryMax{ 6 };
 		int playerBeat{ 45 };
 
+		// Hundredths of a second to stay on the player after a voiced line ends
+		// before cutting to the NPC. 0 cuts immediately. playerBeat covers
+		// unvoiced lines and is timed from the start of the reply instead.
+		int playerVoiceHold{ 0 };
+
+		// Reaction shots: after every reactionEvery NPC lines in a reply, a
+		// reactionChance percent chance the next line is shown on the player.
+		bool reactionShots{ false };
+		int  reactionEvery{ 3 };
+		int  reactionChance{ 50 };
+
 		// iListenerGaze AND iSpeakerGaze ARE GONE, with the Eye Contact section
 		// they were the whole of. 1.4 defers to the game's own gaze and head
 		// tracking; see the note on the retired Faces controls in SD.ini. A value
@@ -170,11 +181,17 @@ namespace SD::Camera
 		// searched onto the far side of the line it was declared to obey. A dirty
 		// single authored at 15 degrees crossed on four of its nine bearings.
 		//
-		// On, the sweep is folded back onto the sanctioned side and the two
-		// participants keep their sides of the screen for the whole scene. Off is
-		// the old behaviour, kept because it is the only way to get back to a
-		// config tuned before the rule existed.
+		// On, the sweep is folded back onto the sanctioned side. Off is the old
+		// behaviour, kept because it is the only way to get back to a config tuned
+		// before the rule existed. This keeps each shot off the line; true180 is
+		// what keeps the whole conversation on one side of it.
 		bool enforceLine{ true };
+
+		// True 180-degree rule. With one shared `side`, NPC and player shots
+		// landed on opposite sides of the line, so both over-the-shoulders used
+		// the same shoulder. On, the player's shots turn the other way and the
+		// camera never crosses. Implies enforceLine.
+		bool true180{ false };
 
 		// Whether somebody standing in the shot costs it points.
 		//

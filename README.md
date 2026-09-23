@@ -27,9 +27,9 @@ No ESP or Papyrus scripts. Nothing is written to your save.
 - [Changes](CHANGELOG.md)
 - [Publish source](LICENSING.md)
 
-Version 1.4.6 caches settings between conversations. The build and 16 tests pass;
-in-game performance testing is still needed. The reported dialogue exit/re-entry
-control lock remains unresolved.
+Version 1.4.8 adds the True 180 Rule, reaction shots and a hold after voiced
+player lines, all off by default. The build and 17 tests pass. The reported
+dialogue exit/re-entry control lock remains unresolved.
 
 ## License
 

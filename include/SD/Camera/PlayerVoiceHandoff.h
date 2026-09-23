@@ -13,16 +13,29 @@ namespace SD::Camera
 		{
 			serial = a_serial;
 			phase = Phase::kIdle;
+			sinceEnd = 0.0f;
+		}
+
+		// Seconds to keep the camera on the player after their voiced line ends.
+		// Timed from the end of the line, so it can run into the NPC's reply.
+		void SetDelay(float a_seconds) noexcept
+		{
+			delay = a_seconds > 0.0f ? a_seconds : 0.0f;
 		}
 
 		void Update(std::uint64_t a_serial, bool a_playerSpeaking,
-			bool a_npcSpeaking, bool a_choosing) noexcept
+			bool a_npcSpeaking, bool a_choosing, float a_delta = 0.0f) noexcept
 		{
+			if (Ended() && a_delta > 0.0f) {
+				sinceEnd += a_delta;
+			}
+
 			if (a_serial != serial) {
 				serial = a_serial;
 				phase = a_playerSpeaking ? Phase::kPlayer : Phase::kIdle;
 			} else if (phase == Phase::kPlayer && !a_playerSpeaking) {
 				phase = Phase::kAwaitingReply;
+				sinceEnd = 0.0f;
 			}
 
 			if (phase == Phase::kAwaitingReply && a_npcSpeaking) {
@@ -37,14 +50,29 @@ namespace SD::Camera
 			}
 		}
 
+		// Line over and the hold has elapsed: the camera belongs on the NPC.
 		[[nodiscard]] bool Active() const noexcept
 		{
-			return phase == Phase::kAwaitingReply || phase == Phase::kReply;
+			return Ended() && sinceEnd >= delay;
+		}
+
+		// Line over but still inside the hold: stay on the player.
+		[[nodiscard]] bool Holding() const noexcept
+		{
+			return Ended() && sinceEnd < delay;
 		}
 
 	private:
 		enum class Phase { kIdle, kPlayer, kAwaitingReply, kReply };
+
+		[[nodiscard]] bool Ended() const noexcept
+		{
+			return phase == Phase::kAwaitingReply || phase == Phase::kReply;
+		}
+
 		std::uint64_t serial{ 0 };
 		Phase phase{ Phase::kIdle };
+		float delay{ 0.0f };
+		float sinceEnd{ 0.0f };
 	};
 }

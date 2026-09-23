@@ -58,5 +58,51 @@ int main()
 	Expect(handoff.Active(), "fresh line after reentry should still hand off");
 	handoff.Update(17, false, false, true);
 	Expect(!handoff.Active(), "topic list returning without an answer releases handoff");
+	Expect(!handoff.Holding(), "with no hold set there is never a hold");
+
+	// iPlayerVoiceHold: the camera stays on the player for the hold, timed from
+	// the end of their line, then hands off.
+	SD::Camera::PlayerVoiceHandoff held;
+	held.SetDelay(1.0f);
+	held.Reset(20);
+	held.Update(21, true, false, false, 0.1f);
+	for (int frame = 0; frame < 30; ++frame) {
+		held.Update(21, true, false, false, 0.1f);
+	}
+	Expect(!held.Holding() && !held.Active(), "time spent speaking does not count toward the hold");
+	held.Update(21, false, false, false, 0.1f);
+	Expect(held.Holding() && !held.Active(), "the hold starts when the voice stops");
+	for (int frame = 0; frame < 5; ++frame) {
+		held.Update(21, false, false, false, 0.1f);
+	}
+	held.Update(21, false, true, false, 0.1f);
+	Expect(held.Holding() && !held.Active(), "the reply starting does not cut the hold short");
+	for (int frame = 0; frame < 5; ++frame) {
+		held.Update(21, false, true, false, 0.1f);
+	}
+	Expect(!held.Holding() && held.Active(), "the handoff arrives when the hold runs out");
+	held.Update(21, false, false, false, 0.1f);
+	Expect(!held.Holding() && !held.Active(), "the reply ending releases a handoff that arrived late");
+
+	held.Update(22, true, false, false, 0.1f);
+	held.Update(22, false, false, false, 0.1f);
+	held.Update(22, false, false, false, 0.0f);
+	held.Update(22, false, false, false, -5.0f);
+	Expect(held.Holding(), "zero and negative frame time do not run the hold out");
+	held.Update(22, false, false, true, 0.1f);
+	Expect(!held.Holding() && !held.Active(), "an unanswered topic releases the hold too");
+
+	held.Update(23, true, false, false, 0.1f);
+	held.Update(23, false, false, false, 0.1f);
+	for (int frame = 0; frame < 4; ++frame) {
+		held.Update(23, false, true, false, 0.1f);
+	}
+	held.Update(23, false, false, false, 0.1f);
+	Expect(!held.Holding() && !held.Active(), "a reply shorter than the hold ends with the camera still on the player");
+
+	held.SetDelay(-1.0f);
+	held.Update(24, true, false, false, 0.1f);
+	held.Update(24, false, false, false, 0.1f);
+	Expect(held.Active() && !held.Holding(), "a negative hold behaves as none");
 	std::cout << "PlayerVoiceHandoff tests passed\n";
 }

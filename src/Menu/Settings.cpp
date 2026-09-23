@@ -579,9 +579,38 @@ namespace SD::Menu
 				Im::EndDisabled();
 
 				Note("The camera keeps an angle until it has heard this many lines, "
-					 "re-rolled between the two so the rhythm is not countable.");
+					 "re-rolled between the two so the rhythm is not countable. "
+					 "The count starts again with every reply.");
 
 				Im::EndDisabled();
+				Im::Unindent();
+			}
+
+			// ---- Reaction Shots ---------------------------------------------
+			if (Group(kIconFaces, "Reaction Shots", "cutReactions")) {
+				Im::Indent();
+
+				if (BeginRows("cutReactionsGrid")) {
+					changed |= ToggleRow("Show You Listening", dials.reactionShots,
+						"Direction", "bReactionShots",
+						"Occasionally shows one of their lines on you, then cuts back. "
+						"Skips short lines and full-intensity lines.");
+					EndRows();
+				}
+
+				Im::BeginDisabled(!dials.reactionShots);
+				if (BeginRows("cutReactionsDials")) {
+					changed |= SliderRow("Lines Before A Reaction", dials.reactionEvery, 1, 10,
+						"Direction", "iReactionEvery", "%d lines");
+					changed |= SliderRow("Reaction Chance", dials.reactionChance, 0, 100,
+						"Direction", "iReactionChance", "%d%%");
+					EndRows();
+				}
+				Note("After this many of their lines, the chance is rolled. On a hit, "
+					 "their next line plays on you. The count and the roll start again "
+					 "with every reply.");
+				Im::EndDisabled();
+
 				Im::Unindent();
 			}
 
@@ -641,6 +670,10 @@ namespace SD::Menu
 						"which is the one moment an angle is allowed to be cut short.");
 					changed |= SecondsRow("Stay On You After You Pick", dials.playerBeat, 0, 300,
 						"Direction", "iPlayerBeat");
+					changed |= SecondsRow("Stay On You After You Speak", dials.playerVoiceHold, 0, 300,
+						"Direction", "iPlayerVoiceHold",
+						"For voiced player lines: how long the camera stays on you after your "
+						"line ends. 0 cuts immediately.");
 					EndRows();
 				}
 				Im::Unindent();
@@ -686,11 +719,26 @@ namespace SD::Menu
 					// THE 180-DEGREE RULE. It is a real piece of film grammar with
 					// a real consequence, and it is the one control here whose name
 					// cannot explain itself to somebody who has not met it.
+					// True 180 depends on Never Cross, so it turns it on and locks it.
+					if (ToggleRow("True 180 Rule", dials.true180,
+						"Direction", "bTrue180",
+						"Films you over one shoulder and them over the opposite one, so the "
+						"camera stays on one side of the conversation. Also turns on Never "
+						"Cross The Eyeline.")) {
+						changed = true;
+						if (dials.true180) {
+							dials.enforceLine = true;
+							Config::SetBool("Direction", "bEnforceLine", true);
+						}
+					}
+
+					Im::BeginDisabled(dials.true180);
 					changed |= ToggleRow("Never Cross The Eyeline", dials.enforceLine,
 						"Direction", "bEnforceLine",
-						"Keeps the camera on one side of the line between the two of you, so "
-						"they stay facing the same way across a cut. Break it and a reverse "
-						"shot appears to flip them to the other side of the screen.");
+						"Stops the camera swinging an angle across the line between you while "
+						"it looks for room. Reverse shots can still land on the far side; "
+						"True 180 Rule fixes that.");
+					Im::EndDisabled();
 
 					if (ToggleRow("Ignore Obstructions Mid-Shot", dials.holdPlacement,
 						"Direction", "bHoldPlacement",
@@ -1923,9 +1971,15 @@ namespace SD::Menu
 				Config::SetInt("Direction", "iMinTurnTime", defaults.minTurnTime);
 				Config::SetInt("Direction", "iMaxShotTime", defaults.maxShotTime);
 				Config::SetInt("Direction", "iPlayerBeat", defaults.playerBeat);
+				Config::SetInt("Direction", "iPlayerVoiceHold", defaults.playerVoiceHold);
+				Config::SetBool("Direction", "bReactionShots", defaults.reactionShots);
+				Config::SetInt("Direction", "iReactionEvery", defaults.reactionEvery);
+				Config::SetInt("Direction", "iReactionChance", defaults.reactionChance);
 				Config::SetBool("Direction", "bKeepSubjectVisible", defaults.protectSubject);
 				Config::SetBool("Direction", "bFirstPersonFallback", defaults.firstPersonFallback);
 				Config::SetBool("Direction", "bHoldPlacement", defaults.holdPlacement);
+				Config::SetBool("Direction", "bTrue180", defaults.true180);
+				Config::SetBool("Direction", "bEnforceLine", defaults.enforceLine);
 				Config::SetBool("Direction", "bLetterbox", defaults.letterbox);
 				Config::SetInt("Direction", "iLetterboxHeight", defaults.letterboxHeight);
 				Config::SetBool("Direction", "bFadeTopicList", defaults.fadeTopicList);

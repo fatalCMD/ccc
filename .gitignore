@@ -13,3 +13,7 @@ package/*/
 # Local log captures. The live SceneDirector.log is written to the
 # OneDrive-redirected My Games path, not here.
 logs/*.log
+
+# Claude notes, prompts and settings
+CLAUDE*.md
+.claude/

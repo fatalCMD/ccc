@@ -14,6 +14,17 @@ namespace SD::Camera::ShotAngles
 	inline constexpr std::array kOffsets{ 0.0f, 3.0f, -3.0f, 6.0f, -6.0f, 9.0f, -9.0f, 12.0f, -12.0f };
 	using Candidates = std::array<float, kOffsets.size()>;
 
+	// Sign applied to a setup's angle off the eyeline. Angles are measured from
+	// the subject toward the other person, so that direction flips between NPC
+	// and player shots. With the true 180 rule the player's sign is flipped back,
+	// which keeps every shot on the same side of the line. Neutral pair shots are
+	// authored on the NPC and use its sign.
+	[[nodiscard]] inline float LineSide(float side, bool onNpc, bool true180)
+	{
+		const float sign = side < 0.0f ? -1.0f : 1.0f;
+		return true180 && !onNpc ? -sign : sign;
+	}
+
 	[[nodiscard]] inline bool AllowedAdjustment(float offset)
 	{
 		// Subtracting the moving nominal bearing can add a few float ULPs.

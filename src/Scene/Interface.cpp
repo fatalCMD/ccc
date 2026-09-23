@@ -176,6 +176,34 @@ namespace SD::Scene
 
 		std::vector<std::string> hiddenMenus;
 
+		// Foreign menus with one part the player should still see during a
+		// conversation. Every child of `parent` except `keep` is faded instead of
+		// the whole movie being hidden.
+		//
+		// TrueHUD draws all its widgets in one menu. Recent Loot (items received)
+		// is alone in TrueHUD_PartialVisibilityWidgets, which TrueHUD itself keeps
+		// up while the dialogue menu is open, hiding its bars.
+		struct PartialKeep
+		{
+			std::string_view menu;
+			const char*      parent;
+			std::string_view keep;
+		};
+
+		constexpr std::array kPartialKeeps{
+			PartialKeep{ "TrueHUD"sv, "_root.TrueHUD", "TrueHUD_PartialVisibilityWidgets"sv },
+		};
+
+		struct FadedChild
+		{
+			std::string menu;
+			std::string path;
+			double      alpha;  // restored on release
+		};
+
+		std::vector<FadedChild>  fadedChildren;
+		std::vector<std::string> partialMenus;
+
 		// The opacity below which the list is pulled out of Scaleform hit testing.
 		//
 		// This was 95, and that is the whole of what "it does not fade, it just
@@ -523,6 +551,71 @@ namespace SD::Scene
 									 Flag::kAssignCursorToRenderer);
 		}
 
+		[[nodiscard]] bool EnumerateChildren(RE::GFxValue& a_parent, std::vector<std::string>& a_out);
+
+		[[nodiscard]] const PartialKeep* FindPartialKeep(std::string_view a_menu)
+		{
+			const auto it = std::find_if(kPartialKeeps.begin(), kPartialKeeps.end(),
+				[&](const PartialKeep& a_keep) { return a_keep.menu == a_menu; });
+			return it != kPartialKeeps.end() ? &*it : nullptr;
+		}
+
+		// Fades every child of a_keep.parent except a_keep.keep. Uses _alpha, not
+		// _visible, because TrueHUD sets _visible on these containers itself on
+		// every menu change. Returns false if the parent can't be found, so the
+		// caller can hide the whole movie instead.
+		[[nodiscard]] bool FadeAllBut(RE::IMenu* a_menu, std::string_view a_menuName, const PartialKeep& a_keep)
+		{
+			auto view = a_menu ? a_menu->uiMovie : nullptr;
+			RE::GFxValue parent;
+			if (!view || !view->GetVariable(&parent, a_keep.parent) || !parent.IsDisplayObject()) {
+				return false;
+			}
+
+			std::vector<std::string> children;
+			if (!EnumerateChildren(parent, children)) {
+				return false;
+			}
+
+			for (const auto& child : children) {
+				if (child == a_keep.keep) {
+					continue;
+				}
+
+				auto path = std::string{ a_keep.parent } + "." + child;
+				RE::GFxValue node;
+				if (!view->GetVariable(&node, path.c_str()) || !node.IsDisplayObject()) {
+					continue;
+				}
+
+				const bool known = std::any_of(fadedChildren.begin(), fadedChildren.end(),
+					[&](const FadedChild& a_faded) { return a_faded.menu == a_menuName && a_faded.path == path; });
+				if (!known) {
+					RE::GFxValue alpha;
+					const double saved = node.GetMember("_alpha", &alpha) && alpha.IsNumber() ? alpha.GetNumber() : 100.0;
+					fadedChildren.push_back({ std::string{ a_menuName }, std::move(path), saved });
+				}
+				node.SetMember("_alpha", RE::GFxValue{ 0.0 });
+			}
+			return true;
+		}
+
+		void SetFadedAlpha(bool a_restore)
+		{
+			auto* ui = RE::UI::GetSingleton();
+			if (!ui) {
+				return;
+			}
+			for (const auto& faded : fadedChildren) {
+				auto         menu = ui->GetMenu(faded.menu);
+				auto         view = menu ? menu->uiMovie : nullptr;
+				RE::GFxValue node;
+				if (view && view->GetVariable(&node, faded.path.c_str()) && node.IsDisplayObject()) {
+					node.SetMember("_alpha", RE::GFxValue{ a_restore ? faded.alpha : 0.0 });
+				}
+			}
+		}
+
 		void SuppressForeignMenus()
 		{
 			auto* ui = RE::UI::GetSingleton();
@@ -559,6 +652,20 @@ namespace SD::Scene
 						}
 						spared += name;
 					}
+					continue;
+				}
+
+				// Already held, either way: ReassertForeignMenus keeps it.
+				const bool heldWhole = std::find(hiddenMenus.begin(), hiddenMenus.end(), name) != hiddenMenus.end();
+				const bool heldPartly = std::find(partialMenus.begin(), partialMenus.end(), name) != partialMenus.end();
+				if (heldPartly) {
+					continue;
+				}
+				if (const auto* keep = FindPartialKeep(name); keep && !heldWhole &&
+					FadeAllBut(entry.second.menu.get(), name, *keep)) {
+					partialMenus.push_back(name);
+					Log::Info(Log::Category::kStaging,
+						"Foreign menu {}: kept {} visible, faded the rest."sv, name, keep->keep);
 					continue;
 				}
 
@@ -610,6 +717,9 @@ namespace SD::Scene
 					static_cast<void>(SetMovieVisible(menu.get(), false, false));
 				}
 			}
+
+			// Catches the menu being rebuilt mid-conversation, which resets alpha.
+			SetFadedAlpha(false);
 		}
 
 		void RestoreForeignMenus()
@@ -623,6 +733,10 @@ namespace SD::Scene
 				}
 			}
 			hiddenMenus.clear();
+
+			SetFadedAlpha(true);
+			fadedChildren.clear();
+			partialMenus.clear();
 		}
 
 		[[nodiscard]] RE::GPtr<RE::IMenu> HudMenu()

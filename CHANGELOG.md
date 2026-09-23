@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.4.8 — 2026-09-23
+
+- Add **True 180 Rule** (Camera > Framing, `[Direction] bTrue180`, default off).
+  You are filmed over one shoulder and the other person over the opposite one,
+  so the camera stays on one side of the conversation. Before this, both
+  over-the-shoulders used the same shoulder and every reverse crossed the line,
+  even with Never Cross The Eyeline on. Enabling it also enables Never Cross The
+  Eyeline. The key light follows the camera to its side of the line.
+- Add **Stay On You After You Speak** (Camera > Holds, `[Direction]
+  iPlayerVoiceHold`, 0–3 s, default 0). With a voiced player line, the camera
+  stays on you this long after your line ends before it goes to them. 0 is the
+  current behaviour: cut the moment you finish.
+- Add **Reaction Shots** (Camera > Reaction Shots, `bReactionShots`,
+  `iReactionEvery`, `iReactionChance`, default off). After every N of their
+  lines, a percent chance that their next line plays on you listening, then the
+  camera goes back. Short lines and full-intensity lines are never reactions.
+  Automatic framing only.
+- The line count for **Per Line Angle Change** and the Reaction Shots count and
+  roll now start again with every reply, including one to a topic picked while
+  the NPC was still talking. Before, the cadence counted across the whole
+  conversation, so a reply could cut early on progress made in the last one.
+- Restore Defaults now also resets Never Cross The Eyeline.
+- TrueHUD compatibility: the Recent Loot list stays visible during
+  conversations, so items received from an NPC show up. TrueHUD's bars and
+  other widgets are still hidden while the camera is directing.
+
+The Release build and all 17 tests pass. All new options ship off or at 0, so
+existing setups behave as before until they are turned on.
+
 ## 1.4.6 — prepared 2026-09-13
 
 - Cache settings while INI files are unchanged. File edits apply at the next

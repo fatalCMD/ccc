@@ -11,6 +11,20 @@ Change angles after a number of dialogue lines, on a timer, or with both.
 Timers have separate settings for speaking and choosing a reply.
 Camera effects include push, pull, crane, tilt, drift, orbit, slide and zoom.
 
+**Reaction Shots** (off by default) occasionally play one of the other person's
+lines on you. After every N of their lines (Lines Before A Reaction), the
+Reaction Chance is rolled; on a hit, their next line is shown on you listening,
+then the camera goes back. Short lines and full-intensity lines are skipped,
+and a framing chosen with the hotkey takes priority.
+
+Both line counts, for angle changes and for reactions, start again with every
+reply, so each answer to a topic you pick is counted on its own.
+
+**Stay On You After You Speak** (under Holds) sets how long the camera stays on
+you after a voiced player line ends before it cuts to them. 0 cuts immediately.
+Stay On You After You Pick is the equivalent for unvoiced lines, timed from
+the start of their reply.
+
 ## Settings
 
 Open **Cinematic Conversation Camera** in SKSE Menu Framework. Pages cover
@@ -26,6 +40,9 @@ Settings marked `(restart)` need a game restart.
 | Direct the Camera | On |
 | Return to First Person Afterwards | On |
 | Keep Subject Visible | Off |
+| True 180 Rule | Off |
+| Reaction Shots | Off; 50% after every 3 lines |
+| Stay On You After You Speak | 0 s |
 | First-Person Fallback | On, with subject protection |
 | Per Line Angle Change | Every 3–6 eligible lines |
 | Ignore Short Lines | On |
@@ -37,6 +54,15 @@ Settings marked `(restart)` need a game restart.
 | Lip Sync Fallback | On |
 | Responsive Expressions | On |
 | Lighting | Off |
+
+## The 180-degree rule
+
+**True 180 Rule** keeps the camera on one side of the conversation. You are
+filmed over one shoulder and the other person over the opposite one, so you
+face each other across every cut. Off, both over-the-shoulders use the same
+shoulder and each reverse crosses the line. Set `[Direction] bTrue180=1`, or
+enable it under Camera > Framing. It also turns on Never Cross The Eyeline,
+which on its own only stops a single angle swinging across the line.
 
 ## Obstructions
 
@@ -122,7 +148,7 @@ There is no lighting page in the panel, and presets leave it off.
 Read `Documents/My Games/Skyrim Special Edition/SKSE/SceneDirector.log`.
 It records camera cuts, available space, conflicts and conversation setup time.
 
-Version 1.4.6 reuses cached settings while INI files are unchanged. File edits
+The mod reuses cached settings while INI files are unchanged. File edits
 apply at the next conversation; menu changes invalidate cached values.
 In-game timing still needs testing. The reported exit/re-entry dialogue control
 lock remains unresolved.

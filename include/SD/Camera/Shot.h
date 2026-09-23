@@ -437,6 +437,10 @@ namespace SD::Camera
 		// Whether the camera is held to one side of the eyeline. See kLineFloor.
 		bool enforceLine{ true };
 
+		// Keep both subjects' shots on one side of the eyeline.
+		// See ShotAngles::LineSide.
+		bool true180{ false };
+
 		// Whether a body across the sightline costs a shot points. Off, the crowd
 		// probe is not run at all, which is also the cheaper path.
 		bool avoidCrowds{ true };
@@ -530,6 +534,10 @@ namespace SD::Camera
 	// In subject-protection mode an unheld sweep admits only verified clear
 	// poses. Held poses retain their placement and report visibility separately.
 	[[nodiscard]] Pose Solve(ShotType a_type, const Subjects& a_subjects);
+
+	// The angle sign Solve uses for this setup (+1 or -1). The key light needs it
+	// to stay on the camera's side of the line.
+	[[nodiscard]] float SideFor(ShotType a_type, const Subjects& a_subjects) noexcept;
 
 	// Recheck the actual lens and required subjects without choosing a bearing
 	// or changing placement/quality. Explicit checks always run, even when a

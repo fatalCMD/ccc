@@ -1490,6 +1490,7 @@ namespace SD::Camera
 
 		// The base direction is from the subject toward the person they are
 		// talking to — look back along it and you see their face.
+		const float lineSide = ShotAngles::LineSide(a_subjects.side, spec.onNpc, a_subjects.true180);
 		bool       ok = false;
 		const auto toOther = Normalized(
 			{ other.x - subject.x, other.y - subject.y, other.z - subject.z }, ok);
@@ -1670,7 +1671,7 @@ namespace SD::Camera
 			float bestScore = -1.0f;
 			for (std::size_t i = 0; i < count; ++i) {
 				const float offset = candidates[i] - angle;
-				const auto direction = RotateAboutZ(baseDirection, candidates[i] * kDeg * (scene ? 1.0f : a_subjects.side));
+				const auto direction = RotateAboutZ(baseDirection, candidates[i] * kDeg * (scene ? 1.0f : lineSide));
 				const auto compose = [&](float available, float rememberedRoom) {
 					const float use = LimitStandoff(a_subjects,
 						std::max(std::min(wanted, available), body.minDistance));
@@ -1824,7 +1825,7 @@ namespace SD::Camera
 		float        bestRoom = 0.0f;
 		float        bestClear = 1.0f;
 		float        bestOffset = 0.0f;
-		RE::NiPoint3 bestDirection = RotateAboutZ(toOther, angle * kDeg * a_subjects.side);
+		RE::NiPoint3 bestDirection = RotateAboutZ(toOther, angle * kDeg * lineSide);
 
 		if (a_subjects.heldSweep > kUnheld) {
 			// The shot already chose its angle. Whether the room along it is
@@ -1836,7 +1837,7 @@ namespace SD::Camera
 			// in it. Turned off, both of those stop happening on purpose: the shot
 			// holds the frame it cut on.
 			bestOffset = a_subjects.heldSweep;
-			bestDirection = RotateAboutZ(toOther, (angle + bestOffset) * kDeg * a_subjects.side);
+			bestDirection = RotateAboutZ(toOther, (angle + bestOffset) * kDeg * lineSide);
 			const Room held = RoomHere(a_subjects, anchorPoint, bestDirection, rise, distance,
 				body.probeStart, body.extent);
 			bestRoom = held.distance;
@@ -1861,7 +1862,7 @@ namespace SD::Camera
 			float bestScore = -1.0f;
 
 			for (std::size_t i = 0; i < count; ++i) {
-				const float swept = candidates[i] * kDeg * a_subjects.side;
+				const float swept = candidates[i] * kDeg * lineSide;
 				const auto  direction = RotateAboutZ(toOther, swept);
 				const Room  room = RoomAlong(anchorPoint, direction, rise, distance, body.probeStart, body.extent);
 
@@ -1940,5 +1941,10 @@ namespace SD::Camera
 		const float sight = Visibility(pose, subject, other, spec, truck, a_subjects);
 		pose.quality = Score(distance, use, bestClear * sight, bestOffset);
 		return pose;
+	}
+
+	float SideFor(ShotType a_type, const Subjects& a_subjects) noexcept
+	{
+		return ShotAngles::LineSide(a_subjects.side, SpecFor(a_type).onNpc, a_subjects.true180);
 	}
 }

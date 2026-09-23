@@ -2,6 +2,8 @@
 
 #include "SD/Camera/Presets.h"
 #include "SD/Camera/PlayerVoiceHandoff.h"
+#include "SD/Camera/ReactionShots.h"
+#include "SD/Camera/ReplyBoundary.h"
 #include "SD/Camera/Shot.h"
 #include "SD/Camera/ShotAngles.h"
 #include "SD/Camera/ShotSelection.h"
@@ -345,6 +347,23 @@ namespace SD::Camera
 		bool coverPlayerTurn{ true };
 		PlayerVoiceHandoff playerVoiceHandoff;
 
+		// Seconds; see Tunables::playerVoiceHold. Applied to the handoff on the
+		// tick, since ApplyTunables runs on the menu thread.
+		float playerVoiceHoldSeconds{ 0.0f };
+
+		ReactionShots           reactionShots;
+		ReactionShots::Settings reactionSettings{};
+
+		// Topic-pick detection for replyBoundary: the last values the tick saw.
+		ReplyBoundary               replyBoundary;
+		Scene::Interface::MenuPhase lastPickPhase{ Scene::Interface::MenuPhase::kUnknown };
+		std::uint64_t               lastPlayerLineSerial{ 0 };
+
+		[[nodiscard]] bool ReactionActive()
+		{
+			return reactionSettings.enabled && reactionShots.Active();
+		}
+
 		// WHO THE CAMERA BELONGS ON THIS INSTANT.
 		//
 		// Every subject test in the file used to read npcSpeaking directly, which
@@ -377,7 +396,13 @@ namespace SD::Camera
 			// Off means the subject simply does not change hands when they stop
 			// talking. Neutrals are already welcome in that state, so a turn is
 			// covered by holding them or going wide — never by cutting to you.
-			default:             return npcSpeaking || playerVoiceHandoff.Active() || !coverPlayerTurn;
+			//
+			// A reaction overrides normal coverage, but not manual framing above.
+			default:
+				if (ReactionActive()) {
+					return false;
+				}
+				return npcSpeaking || playerVoiceHandoff.Active() || !coverPlayerTurn;
 			}
 		}
 
@@ -794,7 +819,11 @@ namespace SD::Camera
 		// The line rule and the crowd test. See Tunables for both; mirrored here
 		// because Solve reads them off Subjects for every candidate it judges.
 		bool enforceLine{ true };
+		bool true180{ false };
 		bool avoidCrowds{ true };
+
+		// Set when true180 changes mid-conversation; handled on the tick.
+		std::atomic<bool> lineRuleChanged{ false };
 
 		// Whether a shot stops re-probing once it has cut. See Tunables.
 		//
@@ -1132,6 +1161,7 @@ namespace SD::Camera
 			read.enabled = Config::Bool("Direction", "bEnabled", true);
 			read.coverPlayerTurn = Config::Bool("Direction", "bCoverPlayerTurn", true);
 			read.enforceLine = Config::Bool("Direction", "bEnforceLine", true);
+			read.true180 = Config::Bool("Direction", "bTrue180", false);
 			read.avoidCrowds = Config::Bool("Direction", "bAvoidCrowds", true);
 			read.holdPlacement = Config::Bool("Direction", "bHoldPlacement", false);
 			read.protectSubject = Config::Bool("Direction", "bKeepSubjectVisible", false);
@@ -1171,6 +1201,11 @@ namespace SD::Camera
 			// function-local static so the lookup happens once, not per conversation.
 			static const bool playerVoiced = DetectPlayerVoice();
 			read.playerBeat = Config::Int("Direction", "iPlayerBeat", playerVoiced ? 90 : 45);
+			read.playerVoiceHold = std::clamp(Config::Int("Direction", "iPlayerVoiceHold", 0), 0, 300);
+
+			read.reactionShots = Config::Bool("Direction", "bReactionShots", false);
+			read.reactionEvery = std::clamp(Config::Int("Direction", "iReactionEvery", 3), 1, 10);
+			read.reactionChance = std::clamp(Config::Int("Direction", "iReactionChance", 50), 0, 100);
 
 			Director::ApplyTunables(read);
 
@@ -2531,7 +2566,8 @@ namespace SD::Camera
 				// the camera stays on faces, turn them to zero and they never appear.
 				pool = std::span<const ShotType>{ kPlayerCoverage };
 
-				if (!coverPlayerTurn && !turnSinceCut) {
+				// A reaction always shows the player, never the room.
+				if (!coverPlayerTurn && !turnSinceCut && !ReactionActive()) {
 					// Never on the FIRST cut of the player's turn, which is the one
 					// piece of the old alternation worth keeping. The first shot after
 					// a reply ends has to be the player, so the choice registers before
@@ -2663,6 +2699,62 @@ namespace SD::Camera
 				SpaceName(roomSpace), roomy ? "allowed"sv : "suppressed"sv);
 		}
 
+		// Line cadence and reaction counts start over with each NPC reply.
+		void ResetReplyCounters()
+		{
+			if (reactionShots.Active()) {
+				Log::Info(Log::Category::kContinuity, "Reaction over; a new reply started."sv);
+			}
+			reactionShots.Reset();
+			linesSinceCut = 0;
+			cutEveryTarget = RollCutEvery();
+			linesThisTurn = 0;
+		}
+
+		// Full-intensity lines count toward a reaction but can't be one, since
+		// Choose() gives those to the NPC close-up.
+		void UpdateReaction(bool a_eligible, std::uint16_t a_intensity)
+		{
+			const bool wasActive = reactionShots.Active();
+			const bool wasOwed = reactionShots.Owed();
+			const std::uint32_t roll = reactionSettings.enabled ? NextRandom() % 100u : 0u;
+			reactionShots.OnNpcLine(reactionSettings, a_eligible, a_intensity < kCloseUpIntensity,
+				framing == Framing::kAuto, roll);
+
+			if (reactionShots.Active()) {
+				Log::Info(Log::Category::kContinuity, "Reaction: this line plays on you."sv);
+			} else if (wasActive) {
+				Log::Info(Log::Category::kContinuity, "Reaction over; back to them."sv);
+			}
+			if (reactionShots.Owed() && !wasOwed) {
+				Log::Info(Log::Category::kContinuity,
+					"Reaction rolled ({}% after {} line(s)); next line plays on you."sv,
+					reactionSettings.chance, reactionSettings.every);
+			}
+		}
+
+		// Feeds topic picks to replyBoundary: the menu's click edge, or a voiced
+		// player line starting.
+		void TrackTopicPicks(const Scene::Interface::DialoguePhase& a_phase, float a_delta)
+		{
+			using Phase = Scene::Interface::MenuPhase;
+			replyBoundary.Advance(a_delta);
+
+			const bool clicked = a_phase.valid && a_phase.phase == Phase::kTopicClicked &&
+				lastPickPhase != Phase::kTopicClicked;
+			if (a_phase.valid) {
+				lastPickPhase = a_phase.phase;
+			}
+
+			const auto serial = Scene::LipSync::PlayerLineSerial();
+			const bool spoke = serial != lastPlayerLineSerial;
+			lastPlayerLineSerial = serial;
+
+			if (clicked || spoke) {
+				replyBoundary.OnPick();
+			}
+		}
+
 		void ApplyCue(RE::Actor* a_speaker, std::uint32_t a_words, std::uint16_t a_intensity,
 			std::uint32_t a_emotion, std::string_view a_text)
 		{
@@ -2752,6 +2844,12 @@ namespace SD::Camera
 				turnBeganAt = replyStartedAt;
 				linesThisTurn = 0;
 			}
+
+			if (replyBoundary.OnLine(alreadySpeaking)) {
+				ResetReplyCounters();
+			}
+			// Every line, short ones included: a new line is what ends a reaction.
+			UpdateReaction(worthCutting, a_intensity);
 
 			cueIntensity = a_intensity;
 			Scene::Performance::OnLine(a_speaker, a_emotion, a_intensity, a_text);
@@ -3467,6 +3565,10 @@ namespace SD::Camera
 					// two AFTER the NPC stopped talking, which is more jarring than
 					// the cut it was suppressed to prevent, not less.
 					cueSinceCut = false;
+
+					// The reply is over; drop any reaction state with it.
+					reactionShots.Reset();
+
 					Log::Info(Log::Category::kContinuity,
 						"Line ended; holding {} through the pause."sv,
 						Name(currentShot));
@@ -3505,7 +3607,8 @@ namespace SD::Camera
 			subjects.npc = npcBody;
 			subjects.player = playerBody;
 			subjects.ceiling = ceilingRoom;
-			subjects.enforceLine = enforceLine;
+			subjects.enforceLine = enforceLine || true180;  // true180 implies enforceLine
+			subjects.true180 = true180;
 			subjects.avoidCrowds = avoidCrowds;
 
 			// The two participants, so the crowd probe can tell them from bystanders.
@@ -4122,6 +4225,10 @@ namespace SD::Camera
 		turnSerial = 0;
 		framingUntilTurn = 0;
 		playerVoiceHandoff.Reset(Scene::LipSync::PlayerLineSerial());
+		reactionShots.Reset();
+		replyBoundary.Reset();
+		lastPickPhase = Scene::Interface::MenuPhase::kUnknown;
+		lastPlayerLineSerial = Scene::LipSync::PlayerLineSerial();
 
 		npcSpeaking = false;
 		wasSpeaking = false;
@@ -4578,6 +4685,8 @@ namespace SD::Camera
 		minShotSeconds = seconds(tunables.minShotTime);
 		minTurnSeconds = seconds(tunables.minTurnTime);
 		playerBeatSeconds = seconds(tunables.playerBeat);
+		playerVoiceHoldSeconds = seconds(tunables.playerVoiceHold);
+		reactionSettings = { tunables.reactionShots, tunables.reactionEvery, tunables.reactionChance };
 
 		// A ceiling below the floor would make every shot instantly stale, and the
 		// camera would then cut on the floor alone â€” which is exactly the
@@ -4595,6 +4704,10 @@ namespace SD::Camera
 		directing = tunables.enabled;
 		coverPlayerTurn = tunables.coverPlayerTurn;
 		enforceLine = tunables.enforceLine;
+		if (tunables.true180 != true180 && staging) {
+			lineRuleChanged.store(true, std::memory_order_relaxed);
+		}
+		true180 = tunables.true180;
 		avoidCrowds = tunables.avoidCrowds;
 
 		// Deliberately not paired with a heldRoom reset.
@@ -4692,6 +4805,8 @@ namespace SD::Camera
 		visibilityRecovery.Reset();
 		staging = false;
 		playerVoiceHandoff.Reset(Scene::LipSync::PlayerLineSerial());
+		reactionShots.Reset();
+		replyBoundary.Reset();
 		subject = {};
 		haveShot = false;
 		npcSpeaking = false;
@@ -5253,6 +5368,7 @@ namespace SD::Camera
 		{
 			const bool wantCut = requestCut.exchange(false, std::memory_order_relaxed);
 			const bool wantFraming = requestFraming.exchange(false, std::memory_order_relaxed);
+			const bool lineRuleFlipped = lineRuleChanged.exchange(false, std::memory_order_relaxed);
 
 			if (staging) {
 				if (wantFraming) {
@@ -5287,6 +5403,17 @@ namespace SD::Camera
 
 				if (wantCut) {
 					forcedCut = true;
+				}
+
+				// true180 changed mid-conversation. Only the player's shots move, so
+				// cut if one is on screen. Clearing heldSince makes it re-pick its
+				// angle if the cut finds nothing better.
+				if (lineRuleFlipped) {
+					lastPlayerPose = {};
+					if (!FavoursNpc(currentShot)) {
+						forcedCut = true;
+						heldSince = {};
+					}
 				}
 
 				// THE OVERRIDE HANDS ITSELF BACK when the turn it was set in ends.
@@ -5501,13 +5628,26 @@ namespace SD::Camera
 			const bool choosing = dialoguePhase.valid && !dialoguePhase.lineInFlight &&
 				dialoguePhase.phase == Scene::Interface::MenuPhase::kTopicList &&
 				!Compat::DBReV::Speaking();
+			// Timers run on frame time, capped so a hitch can't skip a hold, and
+			// paused while the game is.
+			const float frameDelta = std::clamp(a_delta, 0.0f, 0.25f);
+
 			const bool wasHandingOff = playerVoiceHandoff.Active();
+			const bool wasHolding = playerVoiceHandoff.Holding();
+			playerVoiceHandoff.SetDelay(playerVoiceHoldSeconds);
 			playerVoiceHandoff.Update(Scene::LipSync::PlayerLineSerial(),
-				Scene::LipSync::PlayerSpeaking(), npcSpeaking, choosing);
+				Scene::LipSync::PlayerSpeaking(), npcSpeaking, choosing, frameDelta);
+			if (!wasHolding && !wasHandingOff && playerVoiceHandoff.Holding()) {
+				Log::Info(Log::Category::kContinuity,
+					"Player voice ended; holding on you for {:.2f}s."sv, playerVoiceHoldSeconds);
+			}
 			if (!wasHandingOff && playerVoiceHandoff.Active()) {
 				Log::Info(Log::Category::kContinuity,
 					"Player voice ended; framing the NPC before the reply."sv);
 			}
+
+			TrackTopicPicks(dialoguePhase, frameDelta);
+
 			if (protectSubject && !frameSubjects && viewMode == ViewMode::kCinematic) {
 				fallbackRequested = firstPersonFallback;
 			}
@@ -5580,8 +5720,10 @@ namespace SD::Camera
 		// registers â€” and with a player-voice mod installed, throws away their line.
 		// A voiced line already supplied its player beat. Do not add the old
 		// reply-start delay after its audio-end handoff; keep it for unvoiced turns.
+		// For voiced lines the iPlayerVoiceHold window takes its place.
 		const bool inPlayerBeat = npcSpeaking && !playerVoiceHandoff.Active() &&
-			std::chrono::duration<float>(Clock::now() - replyStartedAt).count() < playerBeatSeconds;
+			(playerVoiceHandoff.Holding() ||
+				std::chrono::duration<float>(Clock::now() - replyStartedAt).count() < playerBeatSeconds);
 
 		// Coverage is not negotiable, and is not subject to the timer.
 		//
@@ -5640,8 +5782,10 @@ namespace SD::Camera
 		// It is switched off under a forced framing, where it would be answering a
 		// question the player has already answered by hand: with the camera pinned
 		// to the room, a neutral over their turn is the whole point.
-		const bool neutralStranded = coverPlayerTurn && !forcedFraming &&
-			!wantNpc && IsNeutral(currentShot);
+		//
+		// During a reaction a neutral is wrong even with coverPlayerTurn off.
+		const bool neutralStranded = (coverPlayerTurn || ReactionActive()) &&
+			!forcedFraming && !wantNpc && IsNeutral(currentShot);
 
 		// A forced framing makes "wrong subject" mean something stricter, and it
 		// has to: the correction below is the only thing that moves the camera off
@@ -6103,7 +6247,9 @@ namespace SD::Camera
 			// The look flips with the camera's side of the eyeline, so a key stays
 			// on the same side of the FRAME through a cut instead of walking across
 			// the face every time the coverage reverses.
-			Scene::KeyLight::SetSide(subjects.side);
+			// Uses this shot's own sign, which differs from `side` for the
+			// player's shots under true180.
+			Scene::KeyLight::SetSide(SideFor(currentShot, subjects));
 
 			// Key whoever the shot is actually on, not whoever is speaking. On a
 			// reaction shot the subject is the listener, and lighting the speaker

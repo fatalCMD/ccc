@@ -14,7 +14,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(
 	SceneDirector
-	VERSION 1.4.6
+	VERSION 1.4.8
 	LANGUAGES CXX
 )
 
@@ -117,12 +117,13 @@ if(SD_BUILD_TESTS)
 	add_executable(RegionalGeometryTests tests/RegionalGeometry.test.cpp)
 	add_executable(DialogueDisplayOverrideTests tests/DialogueDisplayOverride.test.cpp)
 	add_executable(PlayerVoiceHandoffTests tests/PlayerVoiceHandoff.test.cpp)
+	add_executable(ReactionShotsTests tests/ReactionShots.test.cpp)
 	add_executable(ListenerPerformanceTests tests/ListenerPerformance.test.cpp)
 	add_executable(ActingTests tests/Acting.test.cpp)
 	add_executable(UpperFaceTestTests tests/UpperFaceTest.test.cpp)
 	add_executable(ExpressionProfilesTests tests/ExpressionProfiles.test.cpp)
 	add_executable(SettingsCacheTests tests/SettingsCache.test.cpp)
-	foreach(SD_TEST_TARGET IN ITEMS SightGeometryTests VisibilityRecoveryTests ShotSelectionTests ShotAnglesTests ExpressionModelTests BrowMotionTests UpperFaceTests RegionalGeometryTests DialogueDisplayOverrideTests PlayerVoiceHandoffTests ListenerPerformanceTests ActingTests UpperFaceTestTests ExpressionProfilesTests SettingsCacheTests)
+	foreach(SD_TEST_TARGET IN ITEMS SightGeometryTests VisibilityRecoveryTests ShotSelectionTests ShotAnglesTests ExpressionModelTests BrowMotionTests UpperFaceTests RegionalGeometryTests DialogueDisplayOverrideTests PlayerVoiceHandoffTests ReactionShotsTests ListenerPerformanceTests ActingTests UpperFaceTestTests ExpressionProfilesTests SettingsCacheTests)
 		target_include_directories(${SD_TEST_TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 		target_compile_features(${SD_TEST_TARGET} PRIVATE cxx_std_20)
 		if(MSVC)
